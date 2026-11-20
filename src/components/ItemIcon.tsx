@@ -7,7 +7,7 @@ export const ItemIcon: React.FC<{ item: ItemType | null; size?: number }> = ({
 }) => {
   if (!item) {
     return (
-      <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true">
+      <svg key="empty" width={size} height={size} viewBox="0 0 48 48" aria-hidden="true">
         <rect
           x="8"
           y="8"
@@ -23,88 +23,120 @@ export const ItemIcon: React.FC<{ item: ItemType | null; size?: number }> = ({
     );
   }
 
-  if (item === 'turbo') {
-    // Red spotted Turbo Mushroom
-    return (
-      <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true">
-        <path
-          d="M17 27 H31 L30 40 C30 42 28 43 24 43 C20 43 18 42 18 40 Z"
-          fill="#FEF3C7"
-          stroke="#14181F"
-          strokeWidth="3"
-        />
-        <path
-          d="M7 26 C7 14 14 7 24 7 C34 7 41 14 41 26 C41 29 36 30 24 30 C12 30 7 29 7 26 Z"
-          fill="#EF4444"
-          stroke="#14181F"
-          strokeWidth="3"
-        />
-        <circle cx="16" cy="18" r="4.2" fill="#FFFFFF" />
-        <circle cx="31" cy="17" r="3.8" fill="#FFFFFF" />
-        <circle cx="24" cy="11.5" r="3.2" fill="#FFFFFF" />
-        <line x1="21" y1="33" x2="21" y2="37" stroke="#14181F" strokeWidth="2.4" strokeLinecap="round" />
-        <line x1="27" y1="33" x2="27" y2="37" stroke="#14181F" strokeWidth="2.4" strokeLinecap="round" />
-      </svg>
-    );
-  }
+  switch (item) {
+    case 'turbo':
+      // Electric Cyan & Gold Speed Boost Bolt + Chevrons (distinct from Red Shell)
+      return (
+        <svg key="turbo" width={size} height={size} viewBox="0 0 48 48" aria-hidden="true">
+          {/* Speed aura chevrons */}
+          <path
+            d="M8 20 L15 13 L8 6"
+            fill="none"
+            stroke="#38BDF8"
+            strokeWidth="3.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            opacity="0.85"
+          />
+          <path
+            d="M40 42 L33 35 L40 28"
+            fill="none"
+            stroke="#38BDF8"
+            strokeWidth="3.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            opacity="0.85"
+          />
+          {/* Core Turbo Lightning Bolt */}
+          <path
+            d="M27 5 L12 25 H23 L19 43 L37 21 H26 Z"
+            fill="#38BDF8"
+            stroke="#14181F"
+            strokeWidth="3"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M25.5 11 L17 23 H24.5 L22.5 34.5 L32 22.5 H24.5 Z"
+            fill="#FACC15"
+          />
+        </svg>
+      );
 
-  if (item === 'banana') {
-    // Expressive Banana Peel
-    return (
-      <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true">
-        <path
-          d="M9 35 C13 24 19 16 24 11 C29 16 35 24 39 35 C34 39 29 37 24 31 C19 37 14 39 9 35 Z"
-          fill="#FACC15"
-          stroke="#14181F"
-          strokeWidth="3"
-          strokeLinejoin="round"
-        />
-        <rect x="21.5" y="6" width="5" height="6" rx="1.5" fill="#78350F" stroke="#14181F" strokeWidth="2" />
-        <circle cx="22" cy="22" r="1.4" fill="#14181F" />
-        <circle cx="26" cy="22" r="1.4" fill="#14181F" />
-      </svg>
-    );
-  }
+    case 'banana':
+      // Expressive Yellow Banana Peel Trap
+      return (
+        <svg key="banana" width={size} height={size} viewBox="0 0 48 48" aria-hidden="true">
+          <path
+            d="M9 35 C13 24 19 16 24 11 C29 16 35 24 39 35 C34 39 29 37 24 31 C19 37 14 39 9 35 Z"
+            fill="#FACC15"
+            stroke="#14181F"
+            strokeWidth="3"
+            strokeLinejoin="round"
+          />
+          <rect
+            x="21.5"
+            y="6"
+            width="5"
+            height="6"
+            rx="1.5"
+            fill="#78350F"
+            stroke="#14181F"
+            strokeWidth="2"
+          />
+          <circle cx="22" cy="22" r="1.4" fill="#14181F" />
+          <circle cx="26" cy="22" r="1.4" fill="#14181F" />
+        </svg>
+      );
 
-  // Homing Red Shell (matches Image 2 UI slot & Items sheet)
-  return (
-    <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true">
-      {/* Cream belly underside */}
-      <path
-        d="M9 28 C9 37 15 41 24 41 C33 41 39 37 39 28 Z"
-        fill="#FDE68A"
-        stroke="#14181F"
-        strokeWidth="3"
-      />
-      <line x1="16" y1="30" x2="18" y2="39" stroke="#D97706" strokeWidth="2" />
-      <line x1="24" y1="30" x2="24" y2="40" stroke="#D97706" strokeWidth="2" />
-      <line x1="32" y1="30" x2="30" y2="39" stroke="#D97706" strokeWidth="2" />
-      {/* Glossy Red Shell dome */}
-      <path
-        d="M7 26 C7 14 14 7 24 7 C34 7 41 14 41 26 Z"
-        fill="#E52521"
-        stroke="#14181F"
-        strokeWidth="3"
-      />
-      {/* Hex pattern highlights */}
-      <polygon
-        points="24,11 30,15 28,22 20,22 18,15"
-        fill="#F87171"
-        opacity="0.45"
-      />
-      {/* White shell rim */}
-      <rect
-        x="6"
-        y="24"
-        width="36"
-        height="6"
-        rx="3"
-        fill="#F8FAFC"
-        stroke="#14181F"
-        strokeWidth="2.8"
-      />
-    </svg>
-  );
+    case 'rocket':
+      // Homing Red Shell with target highlight
+      return (
+        <svg key="rocket" width={size} height={size} viewBox="0 0 48 48" aria-hidden="true">
+          {/* Cream belly underside */}
+          <path
+            d="M9 28 C9 37 15 41 24 41 C33 41 39 37 39 28 Z"
+            fill="#FDE68A"
+            stroke="#14181F"
+            strokeWidth="3"
+          />
+          <line x1="16" y1="30" x2="18" y2="39" stroke="#D97706" strokeWidth="2" />
+          <line x1="24" y1="30" x2="24" y2="40" stroke="#D97706" strokeWidth="2" />
+          <line x1="32" y1="30" x2="30" y2="39" stroke="#D97706" strokeWidth="2" />
+          {/* Glossy Red Shell dome */}
+          <path
+            d="M7 26 C7 14 14 7 24 7 C34 7 41 14 41 26 Z"
+            fill="#E52521"
+            stroke="#14181F"
+            strokeWidth="3"
+          />
+          {/* Hex pattern highlights */}
+          <polygon
+            points="24,11 30,15 28,22 20,22 18,15"
+            fill="#F87171"
+            opacity="0.55"
+          />
+          {/* White shell rim */}
+          <rect
+            x="6"
+            y="24"
+            width="36"
+            height="6"
+            rx="3"
+            fill="#F8FAFC"
+            stroke="#14181F"
+            strokeWidth="2.8"
+          />
+          {/* Subtle homing lock pip */}
+          <circle cx="38" cy="11" r="4" fill="#FACC15" stroke="#14181F" strokeWidth="1.8" />
+        </svg>
+      );
+
+    default: {
+      const _exhaustive: never = item;
+      void _exhaustive;
+      return null;
+    }
+  }
 };
 
 export const CoinIconSvg: React.FC<{ size?: number }> = ({ size = 22 }) => (

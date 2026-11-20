@@ -5,6 +5,11 @@ import { RaceHud, RaceHudHandle } from './components/RaceHud';
 import { TitleOverlay } from './components/TitleOverlay';
 import { kartAudio } from './game/audio';
 import {
+  DiscreteHudState,
+  extractDiscreteHudState,
+  hasDiscreteHudChanged,
+} from './game/items';
+import {
   BASE_MAX_SPEED,
   computeAiInput,
   computeRankings,
@@ -85,21 +90,9 @@ export default function App() {
   const canvasMountRef = useRef<HTMLDivElement | null>(null);
   const threeSceneRef = useRef<KartThreeScene | null>(null);
   const hudHandleRef = useRef<RaceHudHandle | null>(null);
-  const lastDiscreteHudRef = useRef<{
-    rank: number;
-    lap: number;
-    coins: number;
-    heldItem: string | null;
-    countdownValue: number;
-    calloutText: string | null;
-  }>({
-    rank: 3,
-    lap: 1,
-    coins: 0,
-    heldItem: null,
-    countdownValue: -1,
-    calloutText: null,
-  });
+  const lastDiscreteHudRef = useRef<DiscreteHudState>(
+    extractDiscreteHudState(INITIAL_HUD)
+  );
 
   const keysHeldRef = useRef<Set<string>>(new Set());
   const useItemPressedRef = useRef(false);
@@ -166,6 +159,19 @@ export default function App() {
     };
   }, []);
 
+  const syncDiscreteHud = useCallback(
+    (sim: SimState, force = false): HudSnapshot => {
+      const snapshot = buildHudFromSim(sim);
+      const nextDiscrete = extractDiscreteHudState(snapshot);
+      if (force || hasDiscreteHudChanged(lastDiscreteHudRef.current, nextDiscrete)) {
+        lastDiscreteHudRef.current = nextDiscrete;
+        setHud(snapshot);
+      }
+      return snapshot;
+    },
+    [buildHudFromSim]
+  );
+
   const resetRaceSimulation = useCallback(
     (colorId: KartColorId, skipCountdown: boolean) => {
       const karts = createStartingGrid(track, colorId);
@@ -193,9 +199,9 @@ export default function App() {
       threeSceneRef.current?.resetCamera(player);
       keysHeldRef.current.clear();
       useItemPressedRef.current = false;
-      setHud(buildHudFromSim(simRef.current));
+      syncDiscreteHud(simRef.current, true);
     },
-    [track, buildHudFromSim]
+    [track, syncDiscreteHud]
   );
 
   const startRace = useCallback(
@@ -235,6 +241,7 @@ export default function App() {
 
   const handleBackToTitle = useCallback(() => {
     keysHeldRef.current.clear();
+    useItemPressedRef.current = false;
     kartAudio.stopEngine();
     const karts = createStartingGrid(track, selectedColorRef.current);
     simRef.current.phase = 'title';
@@ -243,9 +250,10 @@ export default function App() {
     simRef.current.coins = createInitialCoins(track);
     simRef.current.bananas = [];
     simRef.current.rockets = [];
+    syncDiscreteHud(simRef.current, true);
     document.body.dataset.state = 'title';
     setGameState('title');
-  }, [track]);
+  }, [track, syncDiscreteHud]);
 
   const handleToggleMute = useCallback(() => {
     const nextMuted = kartAudio.toggleMute();
@@ -427,16 +435,17 @@ export default function App() {
       if (sim.phase !== 'playing') return;
 
       if (sim.countdownTimer > 0) {
+        useItemPressedRef.current = false;
         sim.countdownTimer = Math.max(0, sim.countdownTimer - dt);
         const digit = Math.ceil(sim.countdownTimer / 0.6);
         if (sim.countdownTimer <= 0) {
           sim.goDisplayTimer = 0.75;
           kartAudio.playCountdownTick(true);
-          setHud(buildHudFromSim(sim));
+          syncDiscreteHud(sim, true);
         } else if (digit !== sim.lastCountdownDigit) {
           sim.lastCountdownDigit = digit;
           kartAudio.playCountdownTick(false);
-          setHud(buildHudFromSim(sim));
+          syncDiscreteHud(sim, true);
         }
         return;
       }
@@ -445,6 +454,7 @@ export default function App() {
       if (sim.calloutTimer > 0) sim.calloutTimer = Math.max(0, sim.calloutTimer - dt);
 
       if (sim.hitstopTimer > 0) {
+        useItemPressedRef.current = false;
         sim.hitstopTimer = Math.max(0, sim.hitstopTimer - dt);
         return;
       }
@@ -642,7 +652,7 @@ export default function App() {
 
       if (sim.phase === 'playing') {
         liveHudAccum += dt;
-        const snapshot = buildHudFromSim(sim);
+        const snapshot = syncDiscreteHud(sim, false);
         if (liveHudAccum >= 0.08 && sim.countdownTimer <= 0) {
           liveHudAccum = 0;
           const timeTenths = Math.floor(snapshot.raceTime * 10);
@@ -663,26 +673,6 @@ export default function App() {
               kartDots: snapshot.kartDots,
             });
           }
-        }
-
-        const prev = lastDiscreteHudRef.current;
-        if (
-          prev.rank !== snapshot.rank ||
-          prev.lap !== snapshot.lap ||
-          prev.coins !== snapshot.coins ||
-          prev.heldItem !== snapshot.heldItem ||
-          prev.countdownValue !== snapshot.countdownValue ||
-          prev.calloutText !== snapshot.calloutText
-        ) {
-          lastDiscreteHudRef.current = {
-            rank: snapshot.rank,
-            lap: snapshot.lap,
-            coins: snapshot.coins,
-            heldItem: snapshot.heldItem,
-            countdownValue: snapshot.countdownValue,
-            calloutText: snapshot.calloutText,
-          };
-          setHud(snapshot);
         }
       }
 
@@ -718,7 +708,7 @@ export default function App() {
       threeScene.dispose();
       threeSceneRef.current = null;
     };
-  }, [track, buildHudFromSim]);
+  }, [track, syncDiscreteHud]);
 
   const handleTouchKey = useCallback((code: string, pressed: boolean) => {
     if (pressed) keysHeldRef.current.add(code);

@@ -15,8 +15,18 @@ import {
   updateLapAndCheckpoints,
 } from './physics';
 import {
+  ALL_ITEM_TYPES,
+  extractDiscreteHudState,
+  getItemDefinition,
+  hasDiscreteHudChanged,
+  ITEM_CATALOG,
+} from './items';
+import {
   DRIFT_CHARGE_TARGET,
   HazardBanana,
+  HudSnapshot,
+  ITEM_PICKUP_USE_LOCK,
+  ItemType,
   KartInput,
   MINI_TURBO_DURATION,
   OFFROAD_MAX_SPEED_FACTOR,
@@ -287,5 +297,194 @@ test('trackside barriers block karts from driving outside and scenery stays clea
       minDist > track.roadWidth * 0.5 + 165,
       `Scenery prop too close to track (${minDist})`
     );
+  }
+});
+
+test('item catalog defines distinct labels, tags, and colors for every item type', () => {
+  const labels = new Set<string>();
+  const tags = new Set<string>();
+  const colors = new Set<string>();
+
+  for (const itemType of ALL_ITEM_TYPES) {
+    const def = getItemDefinition(itemType);
+    assert.ok(def !== null, `Missing catalog entry for ${itemType}`);
+    assert.equal(def.id, itemType);
+    assert.equal(ITEM_CATALOG[itemType], def);
+    labels.add(def.label);
+    tags.add(def.actionTag);
+    colors.add(def.accentColor);
+  }
+
+  assert.equal(labels.size, ALL_ITEM_TYPES.length);
+  assert.equal(tags.size, ALL_ITEM_TYPES.length);
+  assert.equal(colors.size, ALL_ITEM_TYPES.length);
+  assert.equal(getItemDefinition(null), null);
+});
+
+test('each held item triggers exclusively its own effect and matching event', () => {
+  const track = buildTrackData();
+
+  const cases: Array<{ item: ItemType; expectTurbo: boolean; expectBananas: number; expectRockets: number }> = [
+    { item: 'turbo', expectTurbo: true, expectBananas: 0, expectRockets: 0 },
+    { item: 'banana', expectTurbo: false, expectBananas: 1, expectRockets: 0 },
+    { item: 'rocket', expectTurbo: false, expectBananas: 0, expectRockets: 1 },
+  ];
+
+  for (const c of cases) {
+    const karts = createStartingGrid(track, 'red');
+    const player = karts.find((k) => k.isPlayer)!;
+    const boxes = createInitialItemBoxes(track);
+    const bananas: HazardBanana[] = [];
+    const rockets: ProjectileRocket[] = [];
+    const events = createEmptyStepEvents();
+
+    player.heldItem = c.item;
+    player.itemPickupLockTimer = 0;
+
+    stepItemsAndTrackObjects(
+      karts,
+      { [player.id]: { ...IDLE_INPUT, useItem: true } },
+      boxes,
+      bananas,
+      rockets,
+      track,
+      0.016,
+      events
+    );
+
+    assert.equal(player.heldItem, null);
+    assert.equal(events.itemUsed.length, 1);
+    assert.equal(events.itemUsed[0].item, c.item);
+    assert.equal(player.turboItemTimer > 0, c.expectTurbo);
+    assert.equal(bananas.length, c.expectBananas);
+    assert.equal(rockets.length, c.expectRockets);
+  }
+});
+
+test('pressing useItem on pickup frame never fires an unseen new item and honors pickup lock', () => {
+  const track = buildTrackData();
+  const karts = createStartingGrid(track, 'red');
+  const player = karts.find((k) => k.isPlayer)!;
+  const boxes = createInitialItemBoxes(track);
+  const bananas: HazardBanana[] = [];
+  const rockets: ProjectileRocket[] = [];
+  const events = createEmptyStepEvents();
+
+  // Place player directly on item box while pressing useItem with an empty slot
+  player.x = boxes[0].x;
+  player.y = boxes[0].y;
+  player.rank = 1; // rng=0.5 -> 'banana'
+  stepItemsAndTrackObjects(
+    karts,
+    { [player.id]: { ...IDLE_INPUT, useItem: true } },
+    boxes,
+    bananas,
+    rockets,
+    track,
+    0.016,
+    events,
+    () => 0.5
+  );
+
+  // Item should be picked up and held (NOT consumed immediately)
+  assert.equal(player.heldItem, 'banana');
+  assert.equal(bananas.length, 0);
+  assert.equal(events.itemUsed.length, 0);
+  assert.ok(player.itemPickupLockTimer > 0);
+
+  // Trying to fire immediately during lock keeps item safe
+  stepItemsAndTrackObjects(
+    karts,
+    { [player.id]: { ...IDLE_INPUT, useItem: true } },
+    boxes,
+    bananas,
+    rockets,
+    track,
+    0.05,
+    events
+  );
+  assert.equal(player.heldItem, 'banana');
+  assert.equal(bananas.length, 0);
+
+  // After lock expires, pressing useItem executes the held banana cleanly
+  stepItemsAndTrackObjects(
+    karts,
+    { [player.id]: { ...IDLE_INPUT, useItem: true } },
+    boxes,
+    bananas,
+    rockets,
+    track,
+    ITEM_PICKUP_USE_LOCK,
+    events
+  );
+  assert.equal(player.heldItem, null);
+  assert.equal(bananas.length, 1);
+  assert.equal(events.itemUsed.length, 1);
+  assert.equal(events.itemUsed[0].item, 'banana');
+});
+
+test('using held item on same frame as touching box uses old item first and stores new item safely', () => {
+  const track = buildTrackData();
+  const karts = createStartingGrid(track, 'red');
+  const player = karts.find((k) => k.isPlayer)!;
+  const boxes = createInitialItemBoxes(track);
+  const bananas: HazardBanana[] = [];
+  const rockets: ProjectileRocket[] = [];
+  const events = createEmptyStepEvents();
+
+  player.heldItem = 'turbo';
+  player.itemPickupLockTimer = 0;
+  player.rank = 1; // rng=0.5 -> 'banana'
+  player.x = boxes[0].x;
+  player.y = boxes[0].y;
+
+  stepItemsAndTrackObjects(
+    karts,
+    { [player.id]: { ...IDLE_INPUT, useItem: true } },
+    boxes,
+    bananas,
+    rockets,
+    track,
+    0.016,
+    events,
+    () => 0.5
+  );
+
+  // Turbo was used, banana was collected into slot and NOT dropped
+  assert.ok(player.turboItemTimer > 0);
+  assert.equal(bananas.length, 0);
+  assert.equal(player.heldItem, 'banana');
+  assert.equal(events.itemUsed.length, 1);
+  assert.equal(events.itemUsed[0].item, 'turbo');
+  assert.equal(events.itemPickedUp.length, 1);
+  assert.equal(events.itemPickedUp[0].item, 'banana');
+});
+
+test('discrete HUD change detection tracks every heldItem transition accurately', () => {
+  const base: HudSnapshot = {
+    rank: 2,
+    totalKarts: 4,
+    lap: 1,
+    totalLaps: TOTAL_LAPS,
+    speedKmh: 90,
+    raceTime: 10,
+    coins: 2,
+    heldItem: null,
+    driftChargeRatio: 0,
+    driftReady: false,
+    isBoosted: false,
+    countdownValue: -1,
+    calloutText: null,
+    kartDots: [],
+  };
+
+  let prev = extractDiscreteHudState(base);
+  assert.equal(hasDiscreteHudChanged(prev, extractDiscreteHudState(base)), false);
+
+  for (const nextItem of ['turbo', 'banana', 'rocket', null] as Array<ItemType | null>) {
+    const next = extractDiscreteHudState({ ...base, heldItem: nextItem });
+    assert.equal(hasDiscreteHudChanged(prev, next), true);
+    prev = next;
+    assert.equal(hasDiscreteHudChanged(prev, next), false);
   }
 });

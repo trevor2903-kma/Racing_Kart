@@ -4,6 +4,7 @@ import {
   DRIFT_CHARGE_TARGET,
   HazardBanana,
   ITEM_BOX_RESPAWN_TIME,
+  ITEM_PICKUP_USE_LOCK,
   ItemBox,
   ItemType,
   KART_PRESETS,
@@ -30,6 +31,8 @@ export const DRAG_RATE = 180;
 export const KART_RADIUS = 19;
 export const BARRIER_LATERAL_OFFSET = 48; // Matches 3D barrier wall center (+4.8m outside roadHalf)
 export const BARRIER_INNER_CLEARANCE = 23; // 48 - 11 (wall half-thickness) - 14 (kart half-width)
+
+let nextSpawnEntityId = 1;
 
 export interface StepEvents {
   itemPickedUp: Array<{ kartId: string; isPlayer: boolean; item: ItemType }>;
@@ -124,6 +127,7 @@ export function createStartingGrid(
       lapStartTime: 0,
       bestLapTime: null,
       heldItem: null,
+      itemPickupLockTimer: 0,
       coins: 0,
       aiItemCooldown: 1.2 + slotIdx * 0.4,
       aiLaneOffset: entry.lane * 0.6,
@@ -476,6 +480,68 @@ export function stepItemsAndTrackObjects(
   rng: () => number = Math.random,
   coins: TrackCoin[] = []
 ): void {
+  // 0. Tick pickup grace timers & execute held items BEFORE collecting new item boxes
+  // so pressing Use Item on the same frame as touching a box never fires an unseen new item.
+  for (const kart of karts) {
+    if (kart.itemPickupLockTimer > 0) {
+      kart.itemPickupLockTimer = Math.max(0, kart.itemPickupLockTimer - dt);
+    }
+    const input = inputs[kart.id];
+    if (
+      !kart.finished &&
+      kart.spinoutTimer <= 0 &&
+      kart.itemPickupLockTimer <= 0 &&
+      kart.heldItem &&
+      input?.useItem
+    ) {
+      const item = kart.heldItem;
+      kart.heldItem = null;
+      events.itemUsed.push({ kartId: kart.id, isPlayer: kart.isPlayer, item });
+
+      switch (item) {
+        case 'turbo': {
+          kart.turboItemTimer = TURBO_ITEM_DURATION;
+          kart.speed = Math.max(kart.speed, kart.baseMaxSpeed * 1.45);
+          break;
+        }
+        case 'banana': {
+          const dropDist = KART_RADIUS + 18;
+          bananas.push({
+            id: `banana_${nextSpawnEntityId++}`,
+            x: kart.x - Math.cos(kart.angle) * dropDist,
+            y: kart.y - Math.sin(kart.angle) * dropDist,
+            ownerId: kart.id,
+            armTimer: 0.35,
+            radius: 15,
+          });
+          break;
+        }
+        case 'rocket': {
+          const target = findNearestAheadTarget(kart, karts);
+          const launchSpeed = 570;
+          const spawnDist = KART_RADIUS + 20;
+          rockets.push({
+            id: `rocket_${nextSpawnEntityId++}`,
+            x: kart.x + Math.cos(kart.angle) * spawnDist,
+            y: kart.y + Math.sin(kart.angle) * spawnDist,
+            vx: Math.cos(kart.angle) * launchSpeed,
+            vy: Math.sin(kart.angle) * launchSpeed,
+            angle: kart.angle,
+            ownerId: kart.id,
+            targetId: target ? target.id : null,
+            life: 4.5,
+            radius: 14,
+          });
+          break;
+        }
+        default: {
+          const _exhaustive: never = item;
+          void _exhaustive;
+        }
+      }
+    }
+  }
+
   // 1. Item Boxes respawn & collection
   for (const box of itemBoxes) {
     box.phase += dt * 3.2;
@@ -496,6 +562,7 @@ export function stepItemsAndTrackObjects(
         if (!kart.heldItem) {
           const item = pickRandomItem(kart.rank, rng);
           kart.heldItem = item;
+          kart.itemPickupLockTimer = ITEM_PICKUP_USE_LOCK;
           events.itemPickedUp.push({ kartId: kart.id, isPlayer: kart.isPlayer, item });
         }
         break;
@@ -542,47 +609,6 @@ export function stepItemsAndTrackObjects(
         }
         kart.boostPadTimer = BOOST_PAD_DURATION;
         kart.speed = Math.max(kart.speed, kart.baseMaxSpeed * 1.38);
-      }
-    }
-  }
-
-  // 3. Use held items
-  for (const kart of karts) {
-    const input = inputs[kart.id];
-    if (!kart.finished && kart.spinoutTimer <= 0 && kart.heldItem && input?.useItem) {
-      const item = kart.heldItem;
-      kart.heldItem = null;
-      events.itemUsed.push({ kartId: kart.id, isPlayer: kart.isPlayer, item });
-
-      if (item === 'turbo') {
-        kart.turboItemTimer = TURBO_ITEM_DURATION;
-        kart.speed = Math.max(kart.speed, kart.baseMaxSpeed * 1.45);
-      } else if (item === 'banana') {
-        const dropDist = KART_RADIUS + 18;
-        bananas.push({
-          id: `banana_${Date.now()}_${Math.floor(rng() * 10000)}`,
-          x: kart.x - Math.cos(kart.angle) * dropDist,
-          y: kart.y - Math.sin(kart.angle) * dropDist,
-          ownerId: kart.id,
-          armTimer: 0.35,
-          radius: 15,
-        });
-      } else if (item === 'rocket') {
-        const target = findNearestAheadTarget(kart, karts);
-        const launchSpeed = 570;
-        const spawnDist = KART_RADIUS + 20;
-        rockets.push({
-          id: `rocket_${Date.now()}_${Math.floor(rng() * 10000)}`,
-          x: kart.x + Math.cos(kart.angle) * spawnDist,
-          y: kart.y + Math.sin(kart.angle) * spawnDist,
-          vx: Math.cos(kart.angle) * launchSpeed,
-          vy: Math.sin(kart.angle) * launchSpeed,
-          angle: kart.angle,
-          ownerId: kart.id,
-          targetId: target ? target.id : null,
-          life: 4.5,
-          radius: 14,
-        });
       }
     }
   }

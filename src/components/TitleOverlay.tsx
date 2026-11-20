@@ -87,7 +87,7 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
         </div>
 
         <p className="mb-6 max-w-md text-base text-slate-200 leading-relaxed">
-          {TOTAL_LAPS}-Lap Coastal Circuit. Chain 1.5s drifts for Mini-Turbos, dodge bananas, and launch homing rockets to claim 1st place.
+          {TOTAL_LAPS}-Lap Coastal Circuit. Chain 1.5s drifts for Mini-Turbos, grab Turbo Boosts, drop Banana Traps, and launch homing Red Shells to claim 1st place.
         </p>
 
         {/* Kart Color / Driver Selector */}

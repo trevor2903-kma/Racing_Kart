@@ -1,5 +1,6 @@
 import React, { useImperativeHandle, useMemo, useRef } from 'react';
 import { Volume2, VolumeX, Pause, RotateCcw } from 'lucide-react';
+import { getItemDefinition } from '../game/items';
 import { HudSnapshot, TrackData } from '../game/types';
 import { CoinIconSvg, ItemIcon } from './ItemIcon';
 
@@ -46,12 +47,6 @@ export function formatRaceTime(seconds: number): string {
   const tenths = Math.floor((seconds * 10) % 10);
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}.${tenths}`;
 }
-
-const ITEM_NAMES: Record<string, string> = {
-  turbo: 'Turbo Mushroom',
-  banana: 'Banana Peel',
-  rocket: 'Red Shell',
-};
 
 export const RaceHud: React.FC<RaceHudProps> = ({
   hud,
@@ -132,21 +127,42 @@ export const RaceHud: React.FC<RaceHudProps> = ({
         {/* Top-Left Cluster */}
         <div className="flex items-start gap-3">
           {/* Item Slot */}
-          <div className="flex flex-col items-center">
-            <div
-              data-testid="item-slot"
-              className={`w-[68px] h-[68px] sm:w-[78px] sm:h-[78px] rounded-2xl border-[3px] flex items-center justify-center shadow-[0_4px_12px_rgba(0,0,0,0.45)] ${
-                hud.heldItem
-                  ? 'bg-[#1c2430] border-[#FACC15]'
-                  : 'bg-[#141a23]/90 border-[#475569]'
-              }`}
-            >
-              <ItemIcon item={hud.heldItem} size={46} />
-            </div>
-            <div className="mt-1 text-[11px] font-bold tracking-wide text-white hud-text-stroke whitespace-nowrap">
-              {hud.heldItem ? `${ITEM_NAMES[hud.heldItem]} [E]` : 'ITEM [E]'}
-            </div>
-          </div>
+          {(() => {
+            const itemDef = getItemDefinition(hud.heldItem);
+            return (
+              <div className="flex flex-col items-center">
+                <div
+                  data-testid="item-slot"
+                  data-item={hud.heldItem ?? 'none'}
+                  className="relative w-[68px] h-[68px] sm:w-[78px] sm:h-[78px] rounded-2xl border-[3px] flex items-center justify-center shadow-[0_4px_12px_rgba(0,0,0,0.45)]"
+                  style={{
+                    backgroundColor: itemDef ? itemDef.slotBg : 'rgba(20, 26, 35, 0.9)',
+                    borderColor: itemDef ? itemDef.accentColor : '#475569',
+                  }}
+                >
+                  <ItemIcon item={hud.heldItem} size={46} />
+                  {itemDef && (
+                    <span
+                      data-testid="item-action-tag"
+                      className="absolute -bottom-2 px-1.5 py-0.5 rounded bg-[#0f172a] border text-[9px] font-black tracking-wider uppercase leading-none"
+                      style={{
+                        borderColor: itemDef.accentColor,
+                        color: itemDef.accentColor,
+                      }}
+                    >
+                      {itemDef.actionTag}
+                    </span>
+                  )}
+                </div>
+                <div
+                  data-testid="item-label"
+                  className="mt-2.5 text-[11px] font-bold tracking-wide text-white hud-text-stroke whitespace-nowrap"
+                >
+                  {itemDef ? `${itemDef.label} [E]` : 'ITEM [E]'}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Mobile Compact Coin Badge */}
           <div className="flex md:hidden items-center gap-1.5 rounded-xl bg-[#141a23]/92 border-2 border-[#475569] px-2.5 py-1.5 shadow-[0_4px_12px_rgba(0,0,0,0.4)]">

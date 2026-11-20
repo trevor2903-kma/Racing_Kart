@@ -71,6 +71,7 @@ export const BOOST_PAD_DURATION = 0.85; // Seconds of boost from track boost pad
 export const BANANA_SPINOUT_DURATION = 1.5; // Seconds of spin-out control loss
 export const ROCKET_HIT_SPINOUT = 1.4; // Seconds of spin-out on rocket hit
 export const ITEM_BOX_RESPAWN_TIME = 5.0; // Seconds until collected item box respawns
+export const ITEM_PICKUP_USE_LOCK = 0.25; // Brief lock after pickup so player sees item before firing
 export const OFFROAD_MAX_SPEED_FACTOR = 0.6; // 40% reduction in max speed off-road
 
 export interface Vec2 {
@@ -191,6 +192,7 @@ export interface KartState {
 
   // Item inventory & coins
   heldItem: ItemType | null;
+  itemPickupLockTimer: number;
   coins: number;
   aiItemCooldown: number;
   aiLaneOffset: number;
