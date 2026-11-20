@@ -1,0 +1,6 @@
+{
+  "name": "Turbo Kart GP",
+  "description": "Top-down 2.5D arcade kart racer with drift mini-turbos, homing items, and AI rivals.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
